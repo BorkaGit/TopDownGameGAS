@@ -8,6 +8,7 @@
 #include "AuraPlayerController.generated.h"
 
 
+class UDamageTextComponent;
 class UAuraInputConfig;
 class UAuraAbilitySystemComponent;
 class UInputMappingContext;
@@ -24,6 +25,9 @@ class AURA_API AAuraPlayerController : public APlayerController
 public:
 	AAuraPlayerController();
 	virtual void PlayerTick(float DeltaTime) override;
+
+	UFUNCTION(Client, Reliable)
+	void ShowDamageNumber(ACharacter* TargetCharacter, float DamageAmount);
 	
 protected:
 	virtual void BeginPlay() override;
@@ -83,6 +87,9 @@ private:
 	float AutoRunAcceptanceRadius = 50.f;
 
 	void AutoRun();
+
+	UPROPERTY(EditDefaultsOnly)
+	TSubclassOf<UDamageTextComponent> DamageTextComponentClass;
 	
 	/*
 	* Click to Move End

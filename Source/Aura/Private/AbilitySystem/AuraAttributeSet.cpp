@@ -8,6 +8,9 @@
 #include "GameFramework/Character.h"
 #include "Net/UnrealNetwork.h"
 #include "AuraGameplayTags.h"
+#include "Interaction/CombatInterface.h"
+#include "Kismet/GameplayStatics.h"
+#include "Player/AuraPlayerController.h"
 
 UAuraAttributeSet::UAuraAttributeSet()
 {
@@ -104,12 +107,55 @@ void UAuraAttributeSet::SetEffectProperties(const FGameplayEffectModCallbackData
 void UAuraAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
 {
 	Super::PostGameplayEffectExecute(Data);
-	
-	TSharedPtr<FEffectPropertiesEnhanced> EffectProperties = MakeShared<FEffectPropertiesEnhanced>();
+
+	const TSharedPtr<FEffectPropertiesEnhanced> EffectProperties = MakeShared<FEffectPropertiesEnhanced>();
 	
 	SetEffectProperties(Data, *EffectProperties.Get());
+
+	if(Data.EvaluatedData.Attribute == GetIncomingDamageAttribute())
+	{
+		const float LocalIncomingDamage = GetIncomingDamage();
+		SetIncomingDamage(0.f);
+		if (LocalIncomingDamage > 0.f)
+		{
+			const float NewHealth = GetHealth() - LocalIncomingDamage;
+			SetHealth(FMath::Clamp(NewHealth, 0.f, GetMaxHealth()));
+
+			const bool bFatal = NewHealth <= 0.f;
+
+			if (bFatal)
+			{
+				if (ICombatInterface* CombatInterface = Cast<ICombatInterface>(EffectProperties->TargetProperties->AvatarActor))
+				{
+					CombatInterface->Die();
+				}
+				
+			}
+			else
+			{
+				FGameplayTagContainer TagContainer;
+				TagContainer.AddTag(FAuraGameplayTags::Get().Effects_HitReact);
+				EffectProperties->TargetProperties.Get()->AbilitySystemComponent->TryActivateAbilitiesByTag(TagContainer);
+			}
+
+			ShowFloatingText(EffectProperties, LocalIncomingDamage);
+		}
+	}
 	
 }
+
+void UAuraAttributeSet::ShowFloatingText(TSharedPtr<FEffectPropertiesEnhanced> Props , float Damage)
+{
+	if (Props->SourceProperties->Character != Props->TargetProperties->Character)
+	{
+		const auto PlayerController = Cast<AAuraPlayerController>(UGameplayStatics::GetPlayerController(Props->SourceProperties->Character,0));
+		if (PlayerController)
+		{
+			PlayerController->ShowDamageNumber(Props->TargetProperties->Character,Damage);
+		}
+	}
+}
+
 
 void UAuraAttributeSet::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
